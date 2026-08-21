@@ -20,9 +20,7 @@ function normalizeZodError(error: ZodError): AppError {
     });
 }
 
-function normalizePrismaError(
-    error: Prisma.PrismaClientKnownRequestError,
-): AppError {
+function normalizePrismaError(error: Prisma.PrismaClientKnownRequestError): AppError {
     switch (error.code) {
         case 'P2002':
             return new AppError({

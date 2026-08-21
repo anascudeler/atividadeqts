@@ -3,9 +3,9 @@
 DATABASE_URL="mysql://root:senha@localhost:3306/treinamento_fg"
 NODE_ENV=development
 PORT=3001
-JWT_SECRET=f14a8190ae1b4fb1&sxsrf=APpeQnuhMqgMhUhGfZ_TS6y-QksGf693yg%3A1785349426388&ei
+JWT_SECRET=c18f9c786f09b799ea56f3a9036740737f4d6a4df27ce2fe941e3ed3bc09ae29640e3baf91640d0f5af42fb49605d4ff229ecd66097d8189185288dc99b2bf1a
 JWT_EXPIRES_IN=1h
-JWT_REFRESH_SECRET=f14a8190ae1b4fb1&sxsrf=APpeQnuhMqgMhUhGfZ_TS6y-QksGf693yg%3A1785349426388&ei
+JWT_REFRESH_SECRET=6f52a94dd0d58c848f90ea3a6e212ef21f0d91e06432b5a4e6107b566cb95ab2d2be40858cc3bc6d41ac10d93375bf3a90dc5f84566038faf1a8dd3a8514e27b
 JWT_REFRESH_EXPIRES_IN=7d
 LOG_LEVEL=trace
 
@@ -59,6 +59,12 @@ coverage
 
 prisma/migrations
 
+** __ .vscode/settings.json __ **
+
+{
+    "postman.settings.dotenv-detection-notification-visibility": false
+}
+
 ** __ Makefile __ **
 
 install:
@@ -78,9 +84,12 @@ prisma-migrate:
 
 prisma-studio:
 	npm run prisma:studio
-	
+
 test:
 	npm test
+
+test-run:
+	npm run test:run
 
 lint:
 	npm run lint
@@ -91,6 +100,25 @@ format:
 typecheck:
 	npm run typecheck
 
+check:
+	npm run typecheck
+	npm run lint
+	npm test
+
+help:
+	@printf "\033[1;36mMakefile commands:\033[0m\n"
+	@printf "  \033[1;32minstall\033[0m          - Install dependencies\n"
+	@printf "  \033[1;32mdev\033[0m              - Start development server\n"
+	@printf "  \033[1;32mbuild\033[0m            - Build the project\n"
+	@printf "  \033[1;32mprisma-generate\033[0m  - Generate Prisma client\n"
+	@printf "  \033[1;32mprisma-migrate\033[0m   - Run Prisma migrations\n"
+	@printf "  \033[1;32mprisma-studio\033[0m    - Open Prisma Studio\n"
+	@printf "  \033[1;32mtest\033[0m             - Run tests\n"
+	@printf "  \033[1;32mtest-run\033[0m         - Run tests with watch mode\n"
+	@printf "  \033[1;32mlint\033[0m             - Run linter\n"
+	@printf "  \033[1;32mformat\033[0m           - Format code\n"
+	@printf "  \033[1;32mtypecheck\033[0m        - Check TypeScript types\n"
+	@printf "  \033[1;32mcheck\033[0m            - Run typecheck, lint, and tests\n"
 
 ** __ README.md __ **
 
@@ -132,130 +160,495 @@ Para melhor compreensão da solução, recomenda-se a leitura na seguinte ordem:
 Os artefatos binários oficiais previstos para a pasta de anexos deverão ser incorporados quando disponibilizados pela equipe responsável.
 
 
-** __ eslint.config.js __ **
+** __ dist/app.js __ **
 
-import js from "@eslint/js";
-import tseslint from "typescript-eslint";
-import globals from "globals";
-import eslintConfigPrettier from "eslint-config-prettier";
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.app = void 0;
+const express_1 = __importDefault(require("express"));
+const errors_1 = require("./core/errors");
+const error_middleware_1 = require("./core/middleware/error-middleware");
+const routes_1 = require("./routes");
+const app = (0, express_1.default)();
+exports.app = app;
+app.use(express_1.default.json());
+app.get('/health', (_request, response) => {
+    response.status(200).json({
+        status: 'UP',
+        timestamp: new Date().toISOString(),
+    });
+});
+app.use('/api', routes_1.routes);
+/**
+ * Middleware para rotas inexistentes.
+ * Deve permanecer após todas as rotas.
+ */
+app.use((_request, _response, next) => {
+    next(new errors_1.AppError({
+        error: errors_1.ERROR_TYPES.NOT_FOUND,
+        message: 'Rota não encontrada.',
+    }));
+});
+/**
+ * Último middleware da aplicação.
+ */
+app.use(error_middleware_1.errorMiddleware);
+
+
+** __ dist/config/env.js __ **
+
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.env = void 0;
+require("dotenv/config");
+const zod_1 = require("zod");
+const envSchema = zod_1.z.object({
+    NODE_ENV: zod_1.z.enum([
+        'development',
+        'test',
+        'production',
+    ]),
+    PORT: zod_1.z.coerce.number().int().positive(),
+    DATABASE_URL: zod_1.z.string().min(1),
+    JWT_SECRET: zod_1.z.string().min(32),
+    JWT_EXPIRES_IN: zod_1.z.string(),
+    JWT_REFRESH_SECRET: zod_1.z.string().min(32),
+    JWT_REFRESH_EXPIRES_IN: zod_1.z.string(),
+    LOG_LEVEL: zod_1.z.enum([
+        'fatal',
+        'error',
+        'warn',
+        'info',
+        'debug',
+        'trace',
+    ]),
+});
+exports.env = envSchema.parse(process.env);
+
+
+** __ dist/config/openapi.js __ **
+
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+
+
+** __ dist/core/errors/app-error.js __ **
+
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.AppError = void 0;
+class AppError extends Error {
+    code;
+    statusCode;
+    details;
+    constructor({ error, message, details, cause, }) {
+        super(message, cause ? { cause } : undefined);
+        this.name = 'AppError';
+        this.code = error.code;
+        this.statusCode = error.status;
+        this.details = details;
+        Error.captureStackTrace(this, AppError);
+    }
+}
+exports.AppError = AppError;
+
+
+** __ dist/core/errors/error-normalizer.js __ **
+
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.normalizeError = normalizeError;
+const client_1 = require("@prisma/client");
+const zod_1 = require("zod");
+const app_error_1 = require("./app-error");
+const error_types_1 = require("./error-types");
+const INTERNAL_ERROR_MESSAGE = 'Erro interno do servidor.';
+function normalizeZodError(error) {
+    return new app_error_1.AppError({
+        error: error_types_1.ERROR_TYPES.VALIDATION_ERROR,
+        message: 'Dados de entrada inválidos.',
+        details: error.issues.map((issue) => ({
+            code: issue.code,
+            path: issue.path.join('.'),
+            message: issue.message,
+        })),
+        cause: error,
+    });
+}
+function normalizePrismaError(error) {
+    switch (error.code) {
+        case 'P2002':
+            return new app_error_1.AppError({
+                error: error_types_1.ERROR_TYPES.CONFLICT,
+                message: 'Registro duplicado.',
+                cause: error,
+            });
+        case 'P2025':
+            return new app_error_1.AppError({
+                error: error_types_1.ERROR_TYPES.NOT_FOUND,
+                message: 'Registro não encontrado.',
+                cause: error,
+            });
+        default:
+            return new app_error_1.AppError({
+                error: error_types_1.ERROR_TYPES.INTERNAL_ERROR,
+                message: INTERNAL_ERROR_MESSAGE,
+                cause: error,
+            });
+    }
+}
+function normalizeError(error) {
+    if (error instanceof app_error_1.AppError) {
+        return error;
+    }
+    if (error instanceof zod_1.ZodError) {
+        return normalizeZodError(error);
+    }
+    if (error instanceof client_1.Prisma.PrismaClientKnownRequestError) {
+        return normalizePrismaError(error);
+    }
+    if (error instanceof client_1.Prisma.PrismaClientValidationError) {
+        return new app_error_1.AppError({
+            error: error_types_1.ERROR_TYPES.BAD_REQUEST,
+            message: 'Consulta inválida.',
+            cause: error,
+        });
+    }
+    return new app_error_1.AppError({
+        error: error_types_1.ERROR_TYPES.INTERNAL_ERROR,
+        message: INTERNAL_ERROR_MESSAGE,
+        cause: error,
+    });
+}
+
+
+** __ dist/core/errors/error-types.js __ **
+
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ERROR_TYPES = void 0;
+exports.ERROR_TYPES = {
+    INTERNAL_ERROR: {
+        code: 'INTERNAL_ERROR',
+        status: 500,
+    },
+    VALIDATION_ERROR: {
+        code: 'VALIDATION_ERROR',
+        status: 400,
+    },
+    BAD_REQUEST: {
+        code: 'BAD_REQUEST',
+        status: 400,
+    },
+    NOT_FOUND: {
+        code: 'NOT_FOUND',
+        status: 404,
+    },
+    UNAUTHORIZED: {
+        code: 'UNAUTHORIZED',
+        status: 401,
+    },
+    FORBIDDEN: {
+        code: 'FORBIDDEN',
+        status: 403,
+    },
+    CONFLICT: {
+        code: 'CONFLICT',
+        status: 409,
+    },
+};
+
+
+** __ dist/core/errors/index.js __ **
+
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+__exportStar(require("./app-error"), exports);
+__exportStar(require("./error-types"), exports);
+__exportStar(require("./error-normalizer"), exports);
+
+
+** __ dist/core/logger/index.js __ **
+
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.logger = void 0;
+const pino_1 = __importDefault(require("pino"));
+const options_1 = require("./options");
+exports.logger = (0, pino_1.default)(options_1.loggerOptions);
+
+
+** __ dist/core/logger/options.js __ **
+
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.loggerOptions = void 0;
+const env_1 = require("../../config/env");
+const developmentOptions = env_1.env.NODE_ENV === 'development'
+    ? {
+        transport: {
+            target: 'pino-pretty',
+            options: {
+                colorize: true,
+                translateTime: 'HH:MM:ss',
+                ignore: 'pid,hostname',
+            },
+        },
+    }
+    : {};
+exports.loggerOptions = {
+    level: env_1.env.LOG_LEVEL,
+    ...developmentOptions,
+};
+
+
+** __ dist/core/logger/redact.js __ **
+
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.redact = void 0;
+exports.redact = [
+    'req.headers.authorization',
+    'req.headers.cookie',
+    'password',
+    'refreshToken',
+];
+
+
+** __ dist/core/middleware/async-handler.js __ **
+
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.asyncHandler = asyncHandler;
+function asyncHandler(handler) {
+    return (request, response, next) => {
+        void Promise.resolve(handler(request, response, next)).catch(next);
+    };
+}
+
+
+** __ dist/core/middleware/error-middleware.js __ **
+
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.errorMiddleware = void 0;
+const errors_1 = require("../../core/errors");
+const logger_1 = require("../../core/logger");
+function getRequestContext(request) {
+    return {
+        method: request.method,
+        url: request.originalUrl,
+        ip: request.ip,
+    };
+}
+const errorMiddleware = (error, request, response, _next) => {
+    const appError = (0, errors_1.normalizeError)(error);
+    logger_1.logger.error({
+        err: error,
+        code: appError.code,
+        statusCode: appError.statusCode,
+        request: getRequestContext(request),
+        details: appError.details,
+    }, appError.message);
+    response.status(appError.statusCode).json({
+        success: false,
+        error: {
+            code: appError.code,
+            message: appError.message,
+            ...(appError.details !== undefined && {
+                details: appError.details,
+            }),
+            ...(appError.cause !== undefined && {
+                cause: appError.cause,
+            }),
+        },
+    });
+};
+exports.errorMiddleware = errorMiddleware;
+
+
+** __ dist/routes/index.js __ **
+
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.routes = void 0;
+const express_1 = require("express");
+const routes = (0, express_1.Router)();
+exports.routes = routes;
+routes.get("/teste", (_request, response) => {
+    response.status(200).json({
+        message: "API is running",
+    });
+});
+
+
+** __ dist/server.js __ **
+
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const env_1 = require("./config/env");
+const logger_1 = require("./core/logger");
+const app_1 = require("./app");
+app_1.app.listen(env_1.env.PORT, () => {
+    logger_1.logger.info({
+        port: env_1.env.PORT,
+        environment: env_1.env.NODE_ENV,
+        baseUrl: `http://localhost:${env_1.env.PORT}`,
+    }, 'Servidor iniciado.');
+});
+
+
+** __ eslint.config.mjs __ **
+
+import js from '@eslint/js';
+import tseslint from 'typescript-eslint';
+import globals from 'globals';
+import { globalIgnores } from 'eslint/config';
+import eslintConfigPrettier from 'eslint-config-prettier';
 
 export default [
-  js.configs.recommended,
+    globalIgnores(['dist/', 'node_modules/']),
 
-  ...tseslint.configs.recommended,
+    js.configs.recommended,
 
-  {
-    files: ["**/*.ts"],
+    ...tseslint.configs.recommended,
 
-    languageOptions: {
-      globals: globals.node,
-      parserOptions: {
-        project: true,
-        tsconfigRootDir: import.meta.dirname,
-      },
-    },
+    {
+        files: ['**/*.ts'],
 
-    rules: {
-      "no-console": "warn",
-
-      "@typescript-eslint/no-unused-vars": [
-        "warn",
-        {
-          argsIgnorePattern: "^_",
-          varsIgnorePattern: "^_",
+        languageOptions: {
+            globals: globals.node,
+            parserOptions: {
+                project: true,
+                tsconfigRootDir: import.meta.dirname,
+            },
         },
-      ],
-    },
-  },
 
-  eslintConfigPrettier,
+        rules: {
+            'no-console': 'warn',
+
+            '@typescript-eslint/no-unused-vars': [
+                'warn',
+                {
+                    argsIgnorePattern: '^_',
+                    varsIgnorePattern: '^_',
+                },
+            ],
+        },
+    },
+
+    eslintConfigPrettier,
 ];
+
 
 ** __ package.json __ **
 
 {
-  "name": "treinamento-fg",
-  "version": "1.0.0",
-  "private": true,
-  "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "build": "tsc",
-    "start": "node dist/server.js",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest",
-    "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:deploy": "prisma migrate deploy",
-    "prisma:studio": "prisma studio",
-    "prepare": "husky"
-  },
-  "dependencies": {
-    "@asteasolutions/zod-to-openapi": "^9.1.0",
-    "@prisma/client": "^6.19.3",
-    "bcrypt": "^6.0.0",
-    "dotenv": "^16.6.1",
-    "express": "^4.22.2",
-    "jsonwebtoken": "^9.0.3",
-    "pino": "^10.3.1",
-    "pino-http": "^11.0.0",
-    "swagger-ui-express": "^5.0.1",
-    "zod": "^4.4.3"
-  },
-  "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@types/bcrypt": "^6.0.0",
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^22.20.1",
-    "@types/supertest": "^7.2.1",
-    "@types/swagger-ui-express": "^4.1.8",
-    "eslint": "^10.8.0",
-    "eslint-config-prettier": "^10.1.8",
-    "globals": "^17.8.0",
-    "husky": "^9.1.7",
-    "lint-staged": "^16.4.0",
-    "pino-pretty": "^13.1.3",
-    "prettier": "^3.9.6",
-    "prisma": "^6.19.3",
-    "supertest": "^7.2.2",
-    "tsx": "^4.23.1",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.65.0",
-    "vitest": "^4.1.10"
-  },
-  "lint-staged": {
-    "*.{ts,js}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{json,md,yml,yaml}": [
-      "prettier --write"
-    ]
-  }
+    "name": "treinamento-fg",
+    "version": "1.0.0",
+    "description": "",
+    "private": true,
+    "scripts": {
+        "dev": "tsx watch src/server.ts",
+        "build": "tsc -p tsconfig.build.json && tsc-alias",
+        "start": "node dist/server.js",
+        "typecheck": "tsc --noEmit",
+        "test": "vitest",
+        "test:run": "vitest run",
+        "test:coverage": "vitest run --coverage",
+        "lint": "eslint .",
+        "lint:fix": "eslint . --fix",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "prisma:generate": "prisma generate",
+        "prisma:migrate": "prisma migrate dev",
+        "prisma:deploy": "prisma migrate deploy",
+        "prisma:studio": "prisma studio",
+        "prepare": "husky"
+    },
+    "dependencies": {
+        "@asteasolutions/zod-to-openapi": "^9.1.0",
+        "@prisma/client": "^6.19.3",
+        "bcrypt": "^6.0.0",
+        "dotenv": "^16.6.1",
+        "express": "^4.22.2",
+        "jsonwebtoken": "^9.0.3",
+        "pino": "^10.3.1",
+        "pino-http": "^11.0.0",
+        "swagger-ui-express": "^5.0.1",
+        "zod": "^4.4.3"
+    },
+    "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "@types/bcrypt": "^6.0.0",
+        "@types/express": "^5.0.6",
+        "@types/jsonwebtoken": "^9.0.10",
+        "@types/node": "^22.20.1",
+        "@types/supertest": "^7.2.1",
+        "@types/swagger-ui-express": "^4.1.8",
+        "eslint": "^10.8.0",
+        "eslint-config-prettier": "^10.1.8",
+        "globals": "^17.8.0",
+        "husky": "^9.1.7",
+        "lint-staged": "^16.4.0",
+        "pino-pretty": "^13.1.3",
+        "prettier": "^3.9.6",
+        "prisma": "^6.19.3",
+        "supertest": "^7.2.2",
+        "tsc-alias": "^1.9.1",
+        "tsx": "^4.23.1",
+        "typescript": "^5.9.3",
+        "typescript-eslint": "^8.65.0",
+        "vitest": "^4.1.10"
+    },
+    "lint-staged": {
+        "*.{ts,js}": [
+            "eslint --fix",
+            "prettier --write"
+        ],
+        "*.{json,md,yml,yaml}": [
+            "prettier --write"
+        ]
+    }
 }
 
 
 ** __ prettier.config.js __ **
 
 export default {
-  semi: true,
+	semi: true,
 
-  singleQuote: true,
+    singleQuote: true,
 
-  trailingComma: 'all',
+    trailingComma: 'all',
 
-  printWidth: 100,
+    printWidth: 100,
 
-  tabWidth: 2,
+    tabWidth: 4,
 
-  arrowParens: 'always',
+    arrowParens: 'always',
 };
+
 
 ** __ prisma/schema.prisma __ **
 
@@ -265,22 +658,49 @@ generator client {
 
 datasource db {
   provider = "mysql"
-  url      = env("DATABASE_URL")
 }
 
 ** __ src/app.ts __ **
 
-import express from "express";
+import express from 'express';
+
+import { AppError, ERROR_TYPES } from '@/core/errors';
+import { errorMiddleware } from '@/core/middleware/error-middleware';
+import { routes } from '@/routes';
 
 const app = express();
 
 app.use(express.json());
 
-app.get("/health", (_request, response) => {
-  response.status(200).json({ status: "ok" });
+app.get('/health', (_request, response) => {
+    response.status(200).json({
+        status: 'UP',
+        timestamp: new Date().toISOString(),
+    });
 });
 
+app.use('/api', routes);
+
+/**
+ * Middleware para rotas inexistentes.
+ * Deve permanecer após todas as rotas.
+ */
+app.use((_request, _response, next) => {
+    next(
+        new AppError({
+            error: ERROR_TYPES.NOT_FOUND,
+            message: 'Rota não encontrada.',
+        }),
+    );
+});
+
+/**
+ * Último middleware da aplicação.
+ */
+app.use(errorMiddleware);
+
 export { app };
+
 
 ** __ src/config/env.ts __ **
 
@@ -288,38 +708,192 @@ import 'dotenv/config';
 import { z } from 'zod';
 
 const envSchema = z.object({
-  NODE_ENV: z.enum([
-    'development',
-    'test',
-    'production',
-  ]),
+    NODE_ENV: z.enum(['development', 'test', 'production']),
 
-  PORT: z.coerce.number().int().positive(),
+    PORT: z.coerce.number().int().positive(),
 
-  DATABASE_URL: z.string().min(1),
+    DATABASE_URL: z.string().min(1),
 
-  JWT_SECRET: z.string().min(32),
+    JWT_SECRET: z.string().min(32),
 
-  JWT_EXPIRES_IN: z.string(),
+    JWT_EXPIRES_IN: z.string(),
 
-  JWT_REFRESH_SECRET: z.string().min(32),
+    JWT_REFRESH_SECRET: z.string().min(32),
 
-  JWT_REFRESH_EXPIRES_IN: z.string(),
+    JWT_REFRESH_EXPIRES_IN: z.string(),
 
-  LOG_LEVEL: z.enum([
-    'fatal',
-    'error',
-    'warn',
-    'info',
-    'debug',
-    'trace',
-  ]),
+    LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']),
 });
 
 export const env = envSchema.parse(process.env);
 
+
 ** __ src/config/openapi.ts __ **
 
+
+
+** __ src/core/errors/app-error.ts __ **
+
+import type { ErrorTypes } from './error-types';
+
+export interface AppErrorOptions {
+    error: ErrorTypes;
+    message: string;
+    details?: unknown;
+    cause?: unknown;
+}
+
+export class AppError extends Error {
+    public readonly code: ErrorTypes['code'];
+
+    public readonly statusCode: number;
+
+    public readonly details?: unknown;
+
+    constructor({ error, message, details, cause }: AppErrorOptions) {
+        super(message, cause ? { cause } : undefined);
+
+        this.name = 'AppError';
+
+        this.code = error.code;
+        this.statusCode = error.status;
+        this.details = details;
+
+        Error.captureStackTrace(this, AppError);
+    }
+}
+
+
+** __ src/core/errors/error-normalizer.ts __ **
+
+import { Prisma } from '@prisma/client';
+import { ZodError } from 'zod';
+
+import { AppError } from './app-error';
+import { ERROR_TYPES } from './error-types';
+
+const INTERNAL_ERROR_MESSAGE = 'Erro interno do servidor.';
+
+function normalizeZodError(error: ZodError): AppError {
+    return new AppError({
+        error: ERROR_TYPES.VALIDATION_ERROR,
+        message: 'Dados de entrada inválidos.',
+        details: error.issues.map((issue) => ({
+            code: issue.code,
+            path: issue.path.join('.'),
+            message: issue.message,
+        })),
+
+        cause: error,
+    });
+}
+
+function normalizePrismaError(error: Prisma.PrismaClientKnownRequestError): AppError {
+    switch (error.code) {
+        case 'P2002':
+            return new AppError({
+                error: ERROR_TYPES.CONFLICT,
+                message: 'Registro duplicado.',
+                cause: error,
+            });
+
+        case 'P2025':
+            return new AppError({
+                error: ERROR_TYPES.NOT_FOUND,
+                message: 'Registro não encontrado.',
+                cause: error,
+            });
+
+        default:
+            return new AppError({
+                error: ERROR_TYPES.INTERNAL_ERROR,
+                message: INTERNAL_ERROR_MESSAGE,
+                cause: error,
+            });
+    }
+}
+
+export function normalizeError(error: unknown): AppError {
+    if (error instanceof AppError) {
+        return error;
+    }
+
+    if (error instanceof ZodError) {
+        return normalizeZodError(error);
+    }
+
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        return normalizePrismaError(error);
+    }
+
+    if (error instanceof Prisma.PrismaClientValidationError) {
+        return new AppError({
+            error: ERROR_TYPES.BAD_REQUEST,
+            message: 'Consulta inválida.',
+            cause: error,
+        });
+    }
+
+    return new AppError({
+        error: ERROR_TYPES.INTERNAL_ERROR,
+        message: INTERNAL_ERROR_MESSAGE,
+        cause: error,
+    });
+}
+
+
+** __ src/core/errors/error-types.ts __ **
+
+export interface ErrorDefinition {
+    code: string;
+    status: number;
+}
+
+export const ERROR_TYPES = {
+    INTERNAL_ERROR: {
+        code: 'INTERNAL_ERROR',
+        status: 500,
+    },
+
+    VALIDATION_ERROR: {
+        code: 'VALIDATION_ERROR',
+        status: 400,
+    },
+
+    BAD_REQUEST: {
+        code: 'BAD_REQUEST',
+        status: 400,
+    },
+
+    NOT_FOUND: {
+        code: 'NOT_FOUND',
+        status: 404,
+    },
+
+    UNAUTHORIZED: {
+        code: 'UNAUTHORIZED',
+        status: 401,
+    },
+
+    FORBIDDEN: {
+        code: 'FORBIDDEN',
+        status: 403,
+    },
+
+    CONFLICT: {
+        code: 'CONFLICT',
+        status: 409,
+    },
+} satisfies Record<string, ErrorDefinition>;
+
+export type ErrorTypes = (typeof ERROR_TYPES)[keyof typeof ERROR_TYPES];
+
+
+** __ src/core/errors/index.ts __ **
+
+export * from './app-error';
+export * from './error-types';
+export * from './error-normalizer';
 
 
 ** __ src/core/logger/index.ts __ **
@@ -330,6 +904,7 @@ import { loggerOptions } from './options';
 
 export const logger = pino(loggerOptions);
 
+
 ** __ src/core/logger/options.ts __ **
 
 import type { LoggerOptions } from 'pino';
@@ -337,89 +912,522 @@ import type { LoggerOptions } from 'pino';
 import { env } from '@/config/env';
 
 const developmentOptions: LoggerOptions =
-  env.NODE_ENV === 'development'
-    ? {
-        transport: {
-          target: 'pino-pretty',
-          options: {
-            colorize: true,
-            translateTime: 'HH:MM:ss',
-            ignore: 'pid,hostname',
-          },
-        },
-      }
-    : {};
+    env.NODE_ENV === 'development'
+        ? {
+              transport: {
+                  target: 'pino-pretty',
+                  options: {
+                      colorize: true,
+                      translateTime: 'HH:MM:ss',
+                      ignore: 'pid,hostname',
+                  },
+              },
+          }
+        : {};
 
 export const loggerOptions: LoggerOptions = {
-  level: env.LOG_LEVEL,
+    level: env.LOG_LEVEL,
 
-  ...developmentOptions,
+    ...developmentOptions,
 };
+
 
 ** __ src/core/logger/redact.ts __ **
 
 export const redact = [
-  'req.headers.authorization',
-  'req.headers.cookie',
-  'password',
-  'refreshToken',
+    'req.headers.authorization',
+    'req.headers.cookie',
+    'password',
+    'refreshToken',
 ];
+
+
+** __ src/core/middleware/async-handler.ts __ **
+
+import type { NextFunction, Request, RequestHandler, Response } from 'express';
+
+type AsyncRequestHandler = (
+    request: Request,
+    response: Response,
+    next: NextFunction,
+) => Promise<unknown>;
+
+export function asyncHandler(handler: AsyncRequestHandler): RequestHandler {
+    return (request, response, next) => {
+        void Promise.resolve(handler(request, response, next)).catch(next);
+    };
+}
+
+
+** __ src/core/middleware/error-middleware.ts __ **
+
+import type { ErrorRequestHandler, Request } from 'express';
+
+import { normalizeError } from '@/core/errors';
+import { logger } from '@/core/logger';
+
+function getRequestContext(request: Request) {
+    return {
+        method: request.method,
+        url: request.originalUrl,
+        ip: request.ip,
+    };
+}
+
+export const errorMiddleware: ErrorRequestHandler = (error, request, response, _next) => {
+    const appError = normalizeError(error);
+
+
+    logger.error(
+        {
+            err: error,
+            code: appError.code,
+            statusCode: appError.statusCode,
+            request: getRequestContext(request),
+            details: appError.details,
+        },
+        appError.message,
+    );
+
+    response.status(appError.statusCode).json({
+        success: false,
+        error: {
+            code: appError.code,
+            message: appError.message,
+            ...(appError.details !== undefined && {
+                details: appError.details,
+            }),
+        },
+    });
+};
+
+
+** __ src/routes/index.ts __ **
+
+import { Router } from 'express';
+import type { Request, Response } from 'express';
+import { asyncHandler } from '@/core/middleware/async-handler';
+import { AppError, ERROR_TYPES } from '@/core/errors';
+import { z } from 'zod';
+
+const routes = Router();
+
+routes.get('/teste', (_request: Request, response: Response) => {
+    response.status(200).json({
+        message: 'API is running',
+    });
+});
+
+export { routes };
+
 
 ** __ src/server.ts __ **
 
 import { env } from '@/config/env';
 import { logger } from '@/core/logger';
 
-import { app } from "./app";
+import { app } from './app';
 
-const port = Number(env.PORT ?? 3000);
-
-app.listen(port, () => {
-  logger.info(`Server running in http://localhost:${port}`);
+app.listen(env.PORT, () => {
+    logger.info(
+        {
+            port: env.PORT,
+            environment: env.NODE_ENV,
+            baseUrl: `http://localhost:${env.PORT}`,
+        },
+        'Servidor iniciado.',
+    );
 });
+
+
+** __ tests/app.test.ts __ **
+
+import request from 'supertest';
+import { describe, expect, it } from 'vitest';
+
+import { app } from '@/app';
+
+describe('GET /health', () => {
+    it('deve retornar o status da aplicação', async () => {
+        const response = await request(app).get('/health');
+
+        expect(response.status).toBe(200);
+
+        expect(response.body).toMatchObject({
+            status: 'UP',
+        });
+
+        expect(response.body.timestamp).toBeDefined();
+    });
+});
+
+describe('Rotas inexistentes', () => {
+    it('deve retornar 404 com erro padronizado', async () => {
+        const response = await request(app).get('/rota-que-nao-existe');
+
+        expect(response.status).toBe(404);
+
+        expect(response.body).toEqual({
+            success: false,
+            error: {
+                code: 'NOT_FOUND',
+                message: 'Rota não encontrada.',
+            },
+        });
+    });
+});
+
+
+** __ tests/core/errors/app-error.test.ts __ **
+
+import { describe, expect, it } from 'vitest';
+
+import { AppError, ERROR_TYPES } from '@/core/errors';
+
+describe('AppError', () => {
+    it('deve criar um erro de aplicação com código e status corretos', () => {
+        const error = new AppError({
+            error: ERROR_TYPES.CONFLICT,
+            message: 'Registro já existe.',
+        });
+
+        expect(error).toBeInstanceOf(Error);
+        expect(error).toBeInstanceOf(AppError);
+
+        expect(error.name).toBe('AppError');
+        expect(error.message).toBe('Registro já existe.');
+        expect(error.code).toBe('CONFLICT');
+        expect(error.statusCode).toBe(409);
+    });
+
+    it('deve preservar os detalhes adicionais do erro', () => {
+        const details = {
+            field: 'email',
+            value: 'usuario@fg.local',
+        };
+
+        const error = new AppError({
+            error: ERROR_TYPES.CONFLICT,
+            message: 'Registro já existe.',
+            details,
+        });
+
+        expect(error.details).toEqual(details);
+    });
+});
+
+
+** __ tests/core/errors/error-normalizer.test.ts __ **
+
+import { Prisma } from '@prisma/client';
+import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
+
+import { AppError, ERROR_TYPES, normalizeError } from '@/core/errors';
+
+describe('normalizeError', () => {
+    it('deve transformar P2002 em erro de conflito', () => {
+        const prismaError = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+            code: 'P2002',
+            clientVersion: '6.19.3',
+        });
+
+        const normalizedError = normalizeError(prismaError);
+
+        expect(normalizedError).toBeInstanceOf(AppError);
+        expect(normalizedError.code).toBe('CONFLICT');
+        expect(normalizedError.statusCode).toBe(409);
+        expect(normalizedError.message).toBe('Registro duplicado.');
+    });
+
+    it('deve transformar P2025 em erro de recurso não encontrado', () => {
+        const prismaError = new Prisma.PrismaClientKnownRequestError(
+            'Record to delete does not exist',
+            {
+                code: 'P2025',
+                clientVersion: '6.19.3',
+            },
+        );
+
+        const normalizedError = normalizeError(prismaError);
+
+        expect(normalizedError).toBeInstanceOf(AppError);
+        expect(normalizedError.code).toBe('NOT_FOUND');
+        expect(normalizedError.statusCode).toBe(404);
+        expect(normalizedError.message).toBe('Registro não encontrado.');
+    });
+
+    it('deve transformar um código Prisma desconhecido em erro interno', () => {
+        const prismaError = new Prisma.PrismaClientKnownRequestError(
+            'Erro conhecido do Prisma não tratado pela aplicação',
+            {
+                code: 'P2000',
+                clientVersion: '6.19.3',
+            },
+        );
+
+        const normalizedError = normalizeError(prismaError);
+
+        expect(normalizedError).toBeInstanceOf(AppError);
+        expect(normalizedError.code).toBe('INTERNAL_ERROR');
+        expect(normalizedError.statusCode).toBe(500);
+        expect(normalizedError.message).toBe('Erro interno do servidor.');
+    });
+
+    it('deve transformar PrismaClientValidationError em BAD_REQUEST', () => {
+        const prismaError = new Prisma.PrismaClientValidationError('Invalid Prisma query.', {
+            clientVersion: '6.19.3',
+        });
+
+        const normalizedError = normalizeError(prismaError);
+
+        expect(normalizedError).toBeInstanceOf(AppError);
+        expect(normalizedError.code).toBe('BAD_REQUEST');
+        expect(normalizedError.statusCode).toBe(400);
+        expect(normalizedError.message).toBe('Consulta inválida.');
+    });
+
+    it('deve retornar o próprio AppError quando receber um AppError', () => {
+        const originalError = new AppError({
+            error: ERROR_TYPES.CONFLICT,
+            message: 'Registro já existe.',
+        });
+
+        const normalizedError = normalizeError(originalError);
+
+        expect(normalizedError).toBe(originalError);
+    });
+
+    it('deve transformar um ZodError em AppError de validação', () => {
+        const schema = z.object({
+            name: z.string().min(3),
+        });
+
+        const result = schema.safeParse({
+            name: 'AB',
+        });
+
+        expect(result.success).toBe(false);
+
+        if (result.success) {
+            throw new Error('O teste deveria produzir um erro de validação.');
+        }
+
+        const normalizedError = normalizeError(result.error);
+
+        expect(normalizedError).toBeInstanceOf(AppError);
+        expect(normalizedError.code).toBe('VALIDATION_ERROR');
+        expect(normalizedError.statusCode).toBe(400);
+
+        expect(normalizedError.details).toMatchObject([
+            {
+                code: 'too_small',
+                path: 'name',
+            },
+        ]);
+
+        expect((normalizedError.details as Array<{ message: string }>)[0]?.message).toBeDefined();
+    });
+
+    it('deve transformar um erro desconhecido em erro interno', () => {
+        const originalError = new Error('Erro inesperado.');
+
+        const normalizedError = normalizeError(originalError);
+
+        expect(normalizedError).toBeInstanceOf(AppError);
+        expect(normalizedError.code).toBe('INTERNAL_ERROR');
+        expect(normalizedError.statusCode).toBe(500);
+        expect(normalizedError.message).toBe('Erro interno do servidor.');
+    });
+
+    it('deve transformar valores que não são Error em erro interno', () => {
+        const normalizedError = normalizeError('erro inesperado');
+
+        expect(normalizedError).toBeInstanceOf(AppError);
+        expect(normalizedError.code).toBe('INTERNAL_ERROR');
+        expect(normalizedError.statusCode).toBe(500);
+    });
+});
+
+
+** __ tests/core/middleware/error-middleware.test.ts __ **
+
+import type { Request, Response } from 'express';
+import { describe, expect, it, vi } from 'vitest';
+
+import { AppError, ERROR_TYPES } from '@/core/errors';
+import { errorMiddleware } from '@/core/middleware/error-middleware';
+
+describe('errorMiddleware', () => {
+    it('deve transformar um AppError em uma resposta HTTP padronizada', () => {
+        const error = new AppError({
+            error: ERROR_TYPES.CONFLICT,
+            message: 'Registro já existe.',
+        });
+
+        const request = {
+            method: 'POST',
+            originalUrl: '/api/users',
+            ip: '127.0.0.1',
+        } as Request;
+
+        const response = {
+            status: vi.fn().mockReturnThis(),
+            json: vi.fn().mockReturnThis(),
+        } as unknown as Response;
+
+        const next = vi.fn();
+
+        errorMiddleware(error, request, response, next);
+
+        expect(response.status).toHaveBeenCalledWith(409);
+
+        expect(response.json).toHaveBeenCalledWith({
+            success: false,
+            error: {
+                code: 'CONFLICT',
+                message: 'Registro já existe.',
+            },
+        });
+    });
+
+    it('deve transformar um erro desconhecido em erro interno', () => {
+        const error = new Error('Erro interno que não deve ser exposto.');
+
+        const request = {
+            method: 'GET',
+            originalUrl: '/api/test',
+            ip: '127.0.0.1',
+        } as Request;
+
+        const response = {
+            status: vi.fn().mockReturnThis(),
+            json: vi.fn().mockReturnThis(),
+        } as unknown as Response;
+
+        const next = vi.fn();
+
+        errorMiddleware(error, request, response, next);
+
+        expect(response.status).toHaveBeenCalledWith(500);
+
+        expect(response.json).toHaveBeenCalledWith({
+            success: false,
+            error: {
+                code: 'INTERNAL_ERROR',
+                message: 'Erro interno do servidor.',
+            },
+        });
+    });
+
+    it('deve incluir details quando o AppError possuir detalhes', () => {
+        const error = new AppError({
+            error: ERROR_TYPES.BAD_REQUEST,
+            message: 'Dados inválidos.',
+            details: {
+                field: 'email',
+                reason: 'Formato inválido.',
+            },
+        });
+
+        const request = {
+            method: 'POST',
+            originalUrl: '/api/users',
+            ip: '127.0.0.1',
+        } as Request;
+
+        const response = {
+            status: vi.fn().mockReturnThis(),
+            json: vi.fn().mockReturnThis(),
+        } as unknown as Response;
+
+        const next = vi.fn();
+
+        errorMiddleware(error, request, response, next);
+
+        expect(response.status).toHaveBeenCalledWith(400);
+
+        expect(response.json).toHaveBeenCalledWith({
+            success: false,
+            error: {
+                code: 'BAD_REQUEST',
+                message: 'Dados inválidos.',
+                details: {
+                    field: 'email',
+                    reason: 'Formato inválido.',
+                },
+            },
+        });
+    });
+});
+
+
+
+** __ tsconfig.build.json __ **
+
+{
+    "extends": "./tsconfig.json",
+
+    "compilerOptions": {
+        "rootDir": "src",
+        "outDir": "dist"
+    },
+
+    "include": ["src"],
+
+    "exclude": ["node_modules", "dist", "tests"]
+}
+
 
 ** __ tsconfig.json __ **
 
 {
-  "compilerOptions": {
-    "target": "ES2023",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "compilerOptions": {
+        "target": "ES2023",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
 
-    "rootDir": "src",
-    "outDir": "dist",
+        "rootDir": ".",
+        "outDir": "dist",
 
-    "ignoreDeprecations": "6.0",
+        "paths": {
+            "@/*": ["./src/*"]
+        },
 
-    "baseUrl": "src",
+        "strict": true,
 
-    "paths": {
-      "@/*": ["*"]
+        "noImplicitOverride": true,
+        "noUncheckedIndexedAccess": true,
+        "noFallthroughCasesInSwitch": true,
+        "exactOptionalPropertyTypes": true,
+
+        "esModuleInterop": true,
+        "resolveJsonModule": true,
+
+        "skipLibCheck": true,
+
+        "forceConsistentCasingInFileNames": true
     },
 
-    "strict": true,
+    "include": ["src", "tests"],
 
-    "noImplicitOverride": true,
-    "noUncheckedIndexedAccess": true,
-    "noFallthroughCasesInSwitch": true,
-    "exactOptionalPropertyTypes": true,
-
-    "esModuleInterop": true,
-    "resolveJsonModule": true,
-
-    "skipLibCheck": true,
-
-    "forceConsistentCasingInFileNames": true
-  },
-
-  "include": [
-    "src",
-    "tests"
-  ],
-
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+    "exclude": ["node_modules", "dist"]
 }
+
+
+** __ vitest.config.mts __ **
+
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+    resolve: {
+        tsconfigPaths: true,
+    },
+
+    test: {
+        environment: 'node',
+        globals: false,
+    },
+});
+
 

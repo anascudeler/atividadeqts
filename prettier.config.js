@@ -1,13 +1,13 @@
 export default {
-  semi: true,
+    semi: true,
 
-  singleQuote: true,
+    singleQuote: true,
 
-  trailingComma: 'all',
+    trailingComma: 'all',
 
-  printWidth: 100,
+    printWidth: 100,
 
-  tabWidth: 2,
+    tabWidth: 4,
 
-  arrowParens: 'always',
+    arrowParens: 'always',
 };

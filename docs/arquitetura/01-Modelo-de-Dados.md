@@ -27,18 +27,23 @@ Essas entidades se relacionam com estruturas auxiliares para representar permiss
 ## 4. Entidades Principais
 
 ### Usuários
+
 Representam as pessoas autorizadas a acessar o sistema. Cada usuário deve estar vinculado a um funcionário.
 
 ### Funcionários
+
 Representam os colaboradores que participam dos treinamentos. Nem todo funcionário possui acesso ao sistema.
 
 ### Instrutores
+
 Representam os profissionais que ministram treinamentos, internos ou externos.
 
 ### Treinamentos
+
 Representam o evento presencial de capacitação, com responsáveis, instrutores, participantes, assinaturas e evidências.
 
 ### Perfis de Acesso
+
 Representam os papéis de autorização usados no modelo RBAC.
 
 ## 5. Relacionamentos Principais

@@ -9,10 +9,10 @@ const app = express();
 app.use(express.json());
 
 app.get('/health', (_request, response) => {
-  response.status(200).json({
-    status: 'UP',
-    timestamp: new Date().toISOString(),
-  });
+    response.status(200).json({
+        status: 'UP',
+        timestamp: new Date().toISOString(),
+    });
 });
 
 app.use('/api', routes);
@@ -22,14 +22,13 @@ app.use('/api', routes);
  * Deve permanecer após todas as rotas.
  */
 app.use((_request, _response, next) => {
-  next(
-    new AppError({
-      error: ERROR_TYPES.NOT_FOUND,
-      message: 'Rota não encontrada.',
-    }),
-  );
+    next(
+        new AppError({
+            error: ERROR_TYPES.NOT_FOUND,
+            message: 'Rota não encontrada.',
+        }),
+    );
 });
-
 
 /**
  * Último middleware da aplicação.

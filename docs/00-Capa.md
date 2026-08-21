@@ -1,6 +1,7 @@
 ## Objetivo
 
 Este conjunto documental consolida, de forma estruturada e formal, a visão funcional, os requisitos, a arquitetura e os anexos do Sistema de Gestão de Treinamentos, servindo como referência para validação de escopo, desenvolvimento, homologação e manutenção futura da solução.
+
 # Sistema de Gestão de Treinamentos
 
 ## Capa do Documento
